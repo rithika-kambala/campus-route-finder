@@ -117,7 +117,7 @@ Borrowed name pointers remain owned by the graph and may change after reloading
 or reinitialization. Do not modify or free them.
 
 ## Team Responsibilities
-- **Developer 1:** Graph data structure and operations, campus dataset, loading,
+- **Developer 1 (Rithika):** Graph data structure and operations, campus dataset, loading,
   build foundation and graph unit tests.
 - **Developer 2 (Keith):** Dijkstra, route reconstruction, interactive CLI,
   route-specific tests and final integration.
