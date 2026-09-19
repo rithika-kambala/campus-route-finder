@@ -1,71 +1,111 @@
 # Campus Route Finder
 
 ## Problem Statement
-Students and visitors need to find walking routes between campus locations.
-Part 1 provides the campus graph and data. Part 2 will find shortest routes
-and provide an interactive command-line interface.
+Students and visitors need the shortest walking route between campus locations.
+This terminal application calculates a route and its total distance from a small
+campus graph instead of relying on hardcoded routes.
 
-## Data Structure
-Each campus location is a vertex. Each walkable connection is an undirected
-edge with a positive integer distance in metres.
+## Objectives
+- Model campus locations and walking connections using a graph.
+- Find minimum-distance routes and display each intermediate location.
+- Handle invalid input, disconnected locations and same-location requests.
 
-## Why a Graph?
-A graph models connections, alternative routes and journeys through intermediate
-locations naturally. Walking distances can differ even when routes use the same
-number of connections.
+## Data Structure Used
+A weighted, undirected graph represents the campus. Vertices are locations,
+edges are walking connections, and positive integer weights are metres.
+The graph stores names, a location count and an adjacency matrix. Each undirected
+edge occupies two symmetric matrix cells. Zero means no edge; the diagonal is
+zero and self-loops are rejected. The fixed capacity is ten locations, with names
+up to 63 bytes. A graph naturally represents alternative and intermediate routes.
 
-## Graph Representation
-The graph uses a fixed 10-by-10 adjacency matrix, location names and a location
-count. Active vertex indices are contiguous from 0 to count minus 1. An edge is
-stored in both directions, so the matrix is symmetric. Zero means no edge,
-including on the diagonal; self-loops are rejected. Disconnected graphs are valid.
+## Algorithm Used
+Dijkstra uses three arrays: `distance[]` for the best known distance,
+`visited[]` for settled vertices, and `previous[]` for predecessors.
+It starts the source at zero and other distances at infinity. Each iteration
+selects the nearest unvisited vertex by scanning the array, then relaxes its
+edges: a shorter candidate updates both distance and predecessor. It stops when
+the destination is settled or no reachable unvisited vertex remains.
+Reconstruction follows predecessors backwards and reverses the resulting list.
+Equal-distance alternatives retain the first route found.
 
-Matrix space is O(V²), edge lookup/update is O(1), and scanning a vertex's
-neighbours is O(V). This is simple to demonstrate for ten locations. Names use
-fixed 64-byte buffers (at most 63 bytes plus the terminator).
+## Why Dijkstra?
+The task requires shortest paths in a weighted graph with non-negative weights.
+Our dataset uses strictly positive weights, which meet Dijkstra's requirement.
+Fewest edges does not necessarily mean shortest walking distance.
 
-## Planned Algorithm
-Keith will implement Dijkstra's shortest-path algorithm in Part 2. There is no
-shortest-path algorithm, route reconstruction or interactive CLI in Part 1.
+## Workflow
+User → Select Source & Destination → Campus Graph → Dijkstra Algorithm →
+Distance + Previous Arrays → Path Reconstruction → Shortest Route + Distance
 
 ## Project Structure
 ```text
 campus-route-finder/
 ├── src/
-│   └── graph.c
+│   ├── graph.c
+│   ├── dijkstra.c
+│   └── main.c
 ├── include/
-│   └── graph.h
+│   ├── graph.h
+│   └── dijkstra.h
 ├── tests/
-│   └── test_graph.c
+│   ├── test_graph.c
+│   └── test_routes.c
 ├── data/
 │   └── campus.txt
 ├── Makefile
 ├── README.md
 └── .gitignore
 ```
-Keith will add `src/dijkstra.c`, `include/dijkstra.h`, `src/main.c` and
-`tests/test_routes.c` in Part 2.
 
-## Building
-Requires a C11 compiler and Make; no third-party libraries.
+## Compilation
+Requires a C11 compiler and Make, with no third-party libraries.
 Run from the project directory:
 ```sh
 make
-make test
-make clean
 ```
-`make` compiles the graph object and graph test executable in `build/`.
-Warnings use `-Wall -Wextra -pedantic`. Build outputs are ignored by Git.
-There is no application to run yet. The optional `make app` target is prepared
-for Keith's source/header files and will work once he supplies them. Keith will
-also extend the test target to run his route tests.
+Warnings are enabled with `-Wall -Wextra -pedantic`. `make clean` removes
+all generated objects and executables. Binaries are ignored by Git.
 
-## Running Tests
-`make test` runs six assertion-based groups covering initialization, capacity,
-name copying/lookup, edge insertion/replacement and symmetry, invalid indices,
-no-edge values, NULL handling, dataset loading and malformed-file rejection.
-Run tests without `-DNDEBUG`, which disables assertions. Temporary test data is
-written inside `build/` and removed after a successful run.
+## Execution
+```sh
+./campus_route_finder
+```
+Menu: **1** lists locations, **2** finds a route, **3** displays the adjacency
+matrix, **4** exits. Enter location IDs from 0 to 9. Invalid input returns to
+the menu; end-of-input exits cleanly. Run from the project directory so the
+application can load `data/campus.txt`; a missing or malformed dataset produces
+an error and nonzero exit status.
+
+Example: choose `2`, enter source `0`, destination `2`:
+```text
+Starting Location: Main Gate
+Destination: Library
+
+Shortest Route:
+Main Gate -> Administration Block -> Library
+Total Distance: 220 metres
+```
+Other examples:
+- `0` to `9`: Main Gate → Parking Area, **80 metres**.
+- `0` to `6`: Main Gate → Parking Area → Medical Centre → Hostel, **370 metres**.
+- `2` to `2`: Library, **0 metres**.
+
+## Testing
+```sh
+make test
+```
+Runs all six original graph test groups and the route tests. Route coverage
+includes direct and multi-hop routes, an indirect route shorter than a direct
+edge, reverse routes, identical endpoints, unreachable vertices, invalid inputs,
+equal-distance alternatives, sums beyond `INT_MAX`, and the actual campus data.
+Use assertions enabled (do not pass `-DNDEBUG`).
+
+## Complexity
+- Dijkstra: **O(V²)** time, using linear minimum selection and neighbour scans.
+- Graph storage: **O(V²)** for the adjacency matrix.
+- Algorithm arrays and output route: **O(V)** extra space.
+- Path reconstruction: **O(V)** time.
+The fixed limit is ten vertices; these describe scaling with vertex count.
 
 ## Campus Dataset
 `data/campus.txt` is an illustrative campus, not a surveyed map. Format:
@@ -85,41 +125,30 @@ The sample contains ten locations and seventeen edges. Main Gate–Library is
 Thus a route with more edges can be shorter. Main Gate and Hostel have no direct
 edge, demonstrating the need for intermediate locations.
 
-## Public Contract and Part 2 Handoff
-Include `graph.h` and allocate `Graph graph;`, then call `graph_init(&graph)`.
-Load the sample with `graph_load_campus(&graph, "data/campus.txt")` and check
-its return value. That path is relative to the program's working directory.
-The public structure enables stack allocation; clients should use the functions
-instead of reading or writing its fields.
+## Module Contract
+`graph.h` remains the Part 1 contract and its implementation is unchanged.
+Initialize with `graph_init`, load with `graph_load_campus`, and inspect through
+`graph_location_count`, `graph_is_valid_vertex`, `graph_get_weight` and
+`graph_get_location_name`. Edge lookup returns positive metres, zero for no edge,
+and -1 for invalid input. Name pointers belong to the graph.
 
-| Function | Result or purpose |
-| --- | --- |
-| `graph_init` | Reset all names, edges and the count |
-| `graph_location_count` | Active vertex count |
-| `graph_is_valid_vertex` | 1 for a valid index, otherwise 0 |
-| `graph_add_location` | New vertex index, or -1 on failure |
-| `graph_add_edge` | 1 on success, 0 on failure; replaces existing weight |
-| `graph_get_weight` | Positive distance, 0 for no edge, -1 for invalid input |
-| `graph_get_location_name` | Borrowed name pointer, or NULL |
-| `graph_find_location` | Exact name match's index, or -1 |
-| `graph_display_locations` | Print IDs and names to stdout |
-| `graph_display_matrix` | Print the labelled matrix to stdout |
-| `graph_load_campus` | 1 on success, 0 on failure; replaces graph on success |
+`dijkstra_shortest_route(graph, source, destination, &route)` returns:
+- `1`: success; `route.vertices`, `route.length` and `route.distance` hold the result.
+- `0`: destination unreachable.
+- `-1`: invalid graph/endpoints or NULL output pointer.
 
-Keith can scan candidate neighbours from zero to `graph_location_count(g) - 1`
-and read weights using `graph_get_weight(g, u, v)`. Only positive values represent
-edges. `MAX_LOCATIONS` is available for fixed-size algorithm arrays. This supplies
-everything Dijkstra needs without changing `graph.c` or coupling it to the
-algorithm. Validate endpoints first; handle unreachable vertices in Part 2.
-Distances may reach `INT_MAX` per edge: Keith should check for overflow when
-adding path distances and choose an appropriate distance type/sentinel.
-Borrowed name pointers remain owned by the graph and may change after reloading
-or reinitialization. Do not modify or free them.
+A non-NULL output is reset to length zero and distance -1 on failure.
+Distances use `long long` and addition is checked for overflow.
 
-## Team Responsibilities
-- **Developer 1 (Rithika):** Graph data structure and operations, campus dataset, loading,
-  build foundation and graph unit tests.
-- **Developer 2 (Keith):** Dijkstra, route reconstruction, interactive CLI,
-  route-specific tests and final integration.
+## Team Contributions
+- **Rithika / Part 1:** Graph structure and API, campus dataset and loader,
+  original graph tests and build foundation (`rithika/graph-foundation`).
+- **Keith / Part 2 scope:** Dijkstra, reconstruction, terminal CLI, route tests
+  and integration (`keith/route-finder`). This scope was implemented with Codex
+  at Rithika's request; the commits retain Rithika's configured author identity.
 
-Suggested Git commit message: `feat: implement campus weighted graph foundation`
+## Limitations
+This is an illustrative ten-location campus, not a surveyed map. It models
+symmetric walking distances only, with no travel times, accessibility constraints
+or live updates. The CLI selects locations by numeric ID. Negative and zero-weight
+edges are unsupported; disconnected destinations report that no route exists.
